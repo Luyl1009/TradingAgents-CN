@@ -1282,26 +1282,35 @@ class DataSourceManager:
             from .providers.china.akshare import get_akshare_provider
             provider = get_akshare_provider()
 
-            # 使用异步方法获取历史数据
+            # 🔧 修复事件循环冲突问题
+            # 在异步环境中,不能使用 loop.run_until_complete()
+            # 使用 nest_asyncio 或者直接用 asyncio.run()
             import asyncio
+            
+            async def fetch_data():
+                """异步获取数据"""
+                data = await provider.get_historical_data(symbol, start_date, end_date, period)
+                stock_info = await provider.get_stock_basic_info(symbol)
+                return data, stock_info
+            
+            # 尝试使用现有的事件循环
             try:
                 loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+                if loop.is_running():
+                    # 如果事件循环已经在运行,使用 ensure_future
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    data, stock_info = loop.run_until_complete(fetch_data())
+                else:
+                    data, stock_info = loop.run_until_complete(fetch_data())
             except RuntimeError:
-                # 在线程池中没有事件循环，创建新的
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            data = loop.run_until_complete(provider.get_historical_data(symbol, start_date, end_date, period))
+                # 没有事件循环,创建新的
+                data, stock_info = asyncio.run(fetch_data())
 
             duration = time.time() - start_time
 
             if data is not None and not data.empty:
                 # 🔧 修复：使用统一的格式化方法，包含技术指标计算
-                # 获取股票基本信息
-                stock_info = loop.run_until_complete(provider.get_stock_basic_info(symbol))
                 stock_name = stock_info.get('name', f'股票{symbol}') if stock_info else f'股票{symbol}'
 
                 # 调用统一的格式化方法（包含技术指标计算）
@@ -1326,24 +1335,30 @@ class DataSourceManager:
         from .providers.china.baostock import get_baostock_provider
         provider = get_baostock_provider()
 
-        # 使用异步方法获取历史数据
+        # 🔧 修复事件循环冲突问题
         import asyncio
+        
+        async def fetch_data():
+            """异步获取数据"""
+            data = await provider.get_historical_data(symbol, start_date, end_date, period)
+            stock_info = await provider.get_stock_basic_info(symbol)
+            return data, stock_info
+        
+        # 尝试使用现有的事件循环
         try:
             loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            if loop.is_running():
+                import nest_asyncio
+                nest_asyncio.apply()
+                data, stock_info = loop.run_until_complete(fetch_data())
+            else:
+                data, stock_info = loop.run_until_complete(fetch_data())
         except RuntimeError:
-            # 在线程池中没有事件循环，创建新的
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        data = loop.run_until_complete(provider.get_historical_data(symbol, start_date, end_date, period))
+            # 没有事件循环,创建新的
+            data, stock_info = asyncio.run(fetch_data())
 
         if data is not None and not data.empty:
             # 🔧 修复：使用统一的格式化方法，包含技术指标计算
-            # 获取股票基本信息
-            stock_info = loop.run_until_complete(provider.get_stock_basic_info(symbol))
             stock_name = stock_info.get('name', f'股票{symbol}') if stock_info else f'股票{symbol}'
 
             # 调用统一的格式化方法（包含技术指标计算）
