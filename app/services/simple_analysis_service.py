@@ -2357,7 +2357,7 @@ class SimpleAnalysisService:
             logger.error(f"❌ 保存分析结果失败: {task_id} - {e}")
 
     async def _save_analysis_result_web_style(self, task_id: str, result: Dict[str, Any]):
-        """保存分析结果 - 采用web目录的方式，保存到analysis_reports集合"""
+        """保存分析结果 - 采用web目录的方式,保存到analysis_reports集合"""
         try:
             db = get_mongo_db()
 
@@ -2366,6 +2366,16 @@ class SimpleAnalysisService:
             timestamp = datetime.utcnow()  # 存储 UTC 时间（标准做法）
             stock_symbol = result.get('stock_symbol') or result.get('stock_code', 'UNKNOWN')
             analysis_id = f"{stock_symbol}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+            
+            # 🔥 关键修复：使用前端传递的分析日期，而不是当前时间
+            # result 中应该包含 analysis_date 字段（由 execute_analysis_background 设置）
+            analysis_date = result.get('analysis_date')
+            if not analysis_date:
+                # 降级方案：使用当前日期
+                analysis_date = timestamp.strftime('%Y-%m-%d')
+                logger.warning(f"⚠️ result 中缺少 analysis_date，使用当前日期: {analysis_date}")
+            else:
+                logger.info(f"✅ 使用前端指定的分析日期: {analysis_date}")
 
             # 处理reports字段 - 从state中提取所有分析报告
             reports = {}
@@ -2562,7 +2572,7 @@ class SimpleAnalysisService:
                 "stock_name": stock_name,  # 🔥 添加股票名称字段
                 "market_type": market_type,  # 🔥 添加市场类型字段
                 "model_info": result.get("model_info", "Unknown"),  # 🔥 添加模型信息字段
-                "analysis_date": timestamp.strftime('%Y-%m-%d'),
+                "analysis_date": analysis_date,  # 🔥 使用前端指定的分析日期
                 "timestamp": timestamp,
                 "status": "completed",
                 "source": "api",
